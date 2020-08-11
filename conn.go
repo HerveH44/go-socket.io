@@ -113,9 +113,9 @@ func (c *conn) connect() error {
 		Type: parser.Connect,
 	}
 
-	if err := c.encoder.Encode(header, nil); err != nil {
-		return err
-	}
+	//if err := c.encoder.Encode(header, nil); err != nil {
+	//	return err
+	//}
 	handler, ok := c.handlers[header.Namespace]
 
 	go c.serveError()
