@@ -76,10 +76,6 @@ func (e *Encoder) writePacket(w io.WriteCloser, h Header, args []interface{}) ([
 		h.Type += 3
 	}
 
-	if err := bw.WriteByte(byte(h.Type + '0')); err != nil {
-		return nil, err
-	}
-
 	if h.Type == binaryAck || h.Type == binaryEvent {
 		if err := e.writeUint64(bw, max); err != nil {
 			return nil, err
