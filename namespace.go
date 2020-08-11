@@ -45,6 +45,15 @@ func (h *namespaceHandler) getTypes(event string) []reflect.Type {
 }
 
 func (h *namespaceHandler) dispatch(c Conn, event string, args []reflect.Value) ([]reflect.Value, error) {
+	// onConnect event
+	if event == "" {
+		var err error
+		if h.onConnect != nil {
+			err = h.onConnect(c)
+		}
+		return nil, err
+	}
+
 	namespaceHandler := h.events[event]
 	if namespaceHandler == nil {
 		return nil, nil
