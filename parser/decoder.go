@@ -77,9 +77,7 @@ func (d *Decoder) DecodeHeader(event *string) error {
 
 func (d *Decoder) DecodeArgs(types []reflect.Type) ([]reflect.Value, error) {
 	r := d.packetReader.(io.Reader)
-	if d.isEvent {
-		r = io.MultiReader(strings.NewReader("["), r)
-	}
+	r = io.MultiReader(strings.NewReader("["), r)
 
 	ret := make([]reflect.Value, len(types))
 	values := make([]interface{}, len(types))
