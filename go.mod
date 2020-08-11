@@ -1,4 +1,4 @@
-module github.com/googollee/go-socket.io
+module github.com/herveh44/go-socket.io
 
 go 1.13
 
