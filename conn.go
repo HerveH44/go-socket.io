@@ -186,6 +186,10 @@ func (c *conn) serveRead() {
 	defer c.Close()
 	var event string
 	for {
+		if err := c.decoder.DecodeHeader(&event); err != nil {
+			c.onError("", err)
+			return
+		}
 		conn, ok := c.namespaces[""]
 		if !ok {
 			c.decoder.DiscardLast()
