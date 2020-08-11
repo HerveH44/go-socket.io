@@ -28,14 +28,6 @@ const (
 	typeMax
 )
 
-// Header of packet
-type Header struct {
-	Type      Type
-	Namespace string
-	ID        uint64
-	NeedAck   bool
-}
-
 // Buffer is an binary buffer handler used in emit args. All buffers will be
 // sent as binary in the transport layer.
 type Buffer struct {

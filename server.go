@@ -35,27 +35,27 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // OnConnect set a handler function f to handle open event for
 // namespace nsp.
-func (s *Server) OnConnect(nsp string, f func(Conn) error) {
-	h := s.getNamespace(nsp, true)
+func (s *Server) OnConnect(f func(Conn) error) {
+	h := s.getNamespace("", true)
 	h.OnConnect(f)
 }
 
 // OnDisconnect set a handler function f to handle disconnect event for
 // namespace nsp.
-func (s *Server) OnDisconnect(nsp string, f func(Conn, string)) {
-	h := s.getNamespace(nsp, true)
+func (s *Server) OnDisconnect(f func(Conn, string)) {
+	h := s.getNamespace("", true)
 	h.OnDisconnect(f)
 }
 
 // OnError set a handler function f to handle error for namespace nsp.
-func (s *Server) OnError(nsp string, f func(Conn, error)) {
-	h := s.getNamespace(nsp, true)
+func (s *Server) OnError(f func(Conn, error)) {
+	h := s.getNamespace("", true)
 	h.OnError(f)
 }
 
 // OnEvent set a handler function f to handle event for namespace nsp.
-func (s *Server) OnEvent(nsp, event string, f interface{}) {
-	h := s.getNamespace(nsp, true)
+func (s *Server) OnEvent(event string, f interface{}) {
+	h := s.getNamespace("", true)
 	h.OnEvent(event, f)
 }
 

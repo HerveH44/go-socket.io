@@ -45,8 +45,7 @@ type errorMessage struct {
 }
 
 type writePacket struct {
-	header parser.Header
-	data   []interface{}
+	data []interface{}
 }
 
 type conn struct {
@@ -108,23 +107,11 @@ func (c *conn) connect() error {
 	for _, ns := range c.namespaces {
 		ns.SetContext(c.Conn.Context())
 	}
-
-	header := parser.Header{
-		Type: parser.Connect,
-	}
-
-	//if err := c.encoder.Encode(header, nil); err != nil {
-	//	return err
-	//}
-	handler, ok := c.handlers[header.Namespace]
-
 	go c.serveError()
 	go c.serveWrite()
 	go c.serveRead()
 
-	if ok {
-		handler.dispatch(root, header, "", nil)
-	}
+	rootHandler.dispatch(root, "", nil)
 
 	return nil
 }
@@ -134,14 +121,13 @@ func (c *conn) nextID() uint64 {
 	return c.id
 }
 
-func (c *conn) write(header parser.Header, args []reflect.Value) {
+func (c *conn) write(args []reflect.Value) {
 	data := make([]interface{}, len(args))
 	for i := range data {
 		data[i] = args[i].Interface()
 	}
 	pkg := writePacket{
-		header: header,
-		data:   data,
+		data: data,
 	}
 	select {
 	case c.writeChan <- pkg:
@@ -189,8 +175,8 @@ func (c *conn) serveWrite() {
 		case <-c.quitChan:
 			return
 		case pkg := <-c.writeChan:
-			if err := c.encoder.Encode(pkg.header, pkg.data); err != nil {
-				c.onError(pkg.header.Namespace, err)
+			if err := c.encoder.Encode(pkg.data); err != nil {
+				c.onError("pkg.header.Namespace", err)
 			}
 		}
 	}
@@ -200,89 +186,29 @@ func (c *conn) serveRead() {
 	defer c.Close()
 	var event string
 	for {
-		var header parser.Header
-		if err := c.decoder.DecodeHeader(&header, &event); err != nil {
-			c.onError("", err)
+		conn, ok := c.namespaces[""]
+		if !ok {
+			c.decoder.DiscardLast()
+			continue
+		}
+		handler, ok := c.handlers[""]
+		if !ok {
+			c.decoder.DiscardLast()
+			continue
+		}
+		types := handler.getTypes(event)
+		args, err := c.decoder.DecodeArgs(types)
+		if err != nil {
+			c.onError("header.Namespace", err)
 			return
 		}
-		if header.Namespace == "/" {
-			header.Namespace = ""
+		ret, err := handler.dispatch(conn, event, args)
+		if err != nil {
+			c.onError("header.Namespace", err)
+			return
 		}
-		switch header.Type {
-		case parser.Ack:
-			conn, ok := c.namespaces[header.Namespace]
-			if !ok {
-				c.decoder.DiscardLast()
-				continue
-			}
-			conn.dispatch(header)
-		case parser.Event:
-			conn, ok := c.namespaces[header.Namespace]
-			if !ok {
-				c.decoder.DiscardLast()
-				continue
-			}
-			handler, ok := c.handlers[header.Namespace]
-			if !ok {
-				c.decoder.DiscardLast()
-				continue
-			}
-			types := handler.getTypes(header, event)
-			args, err := c.decoder.DecodeArgs(types)
-			if err != nil {
-				c.onError(header.Namespace, err)
-				return
-			}
-			ret, err := handler.dispatch(conn, header, event, args)
-			if err != nil {
-				c.onError(header.Namespace, err)
-				return
-			}
-			if len(ret) > 0 {
-				header.Type = parser.Ack
-				c.write(header, ret)
-			}
-		case parser.Connect:
-			if err := c.decoder.DiscardLast(); err != nil {
-				c.onError(header.Namespace, err)
-				return
-			}
-
-			handler, ok := c.handlers[header.Namespace]
-			if ok {
-				conn, ok := c.namespaces[header.Namespace]
-				if !ok {
-					conn = newNamespaceConn(c, header.Namespace, handler.broadcast)
-					c.namespaces[header.Namespace] = conn
-					conn.Join(c.ID())
-				}
-				handler.dispatch(conn, header, "", nil)
-
-				//leave default room?!
-			} else {
-				c.onError(header.Namespace, errors.New("can't connect to namespace without handler"))
-				return
-			}
-			c.write(header, nil)
-		case parser.Disconnect:
-			types := []reflect.Type{reflect.TypeOf("")}
-			args, err := c.decoder.DecodeArgs(types)
-			if err != nil {
-				c.onError(header.Namespace, err)
-				return
-			}
-			conn, ok := c.namespaces[header.Namespace]
-			if !ok {
-				c.decoder.DiscardLast()
-				continue
-			}
-
-			conn.LeaveAll()
-			delete(c.namespaces, header.Namespace)
-			handler, ok := c.handlers[header.Namespace]
-			if ok {
-				handler.dispatch(conn, header, "", args)
-			}
+		if len(ret) > 0 {
+			c.write(ret)
 		}
 	}
 }

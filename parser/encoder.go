@@ -24,7 +24,7 @@ func NewEncoder(w FrameWriter) *Encoder {
 	}
 }
 
-func (e *Encoder) Encode(h Header, args []interface{}) (err error) {
+func (e *Encoder) Encode(args []interface{}) (err error) {
 	var w io.WriteCloser
 	w, err = e.w.NextWriter(engineio.TEXT)
 	if err != nil {
@@ -32,7 +32,7 @@ func (e *Encoder) Encode(h Header, args []interface{}) (err error) {
 	}
 
 	var buffers [][]byte
-	buffers, err = e.writePacket(w, h, args)
+	buffers, err = e.writePacket(w, args)
 
 	if err != nil {
 		return
@@ -60,7 +60,7 @@ type flusher interface {
 	Flush() error
 }
 
-func (e *Encoder) writePacket(w io.WriteCloser, h Header, args []interface{}) ([][]byte, error) {
+func (e *Encoder) writePacket(w io.WriteCloser, args []interface{}) ([][]byte, error) {
 	defer w.Close()
 	bw, ok := w.(byteWriter)
 	if !ok {
@@ -71,35 +71,6 @@ func (e *Encoder) writePacket(w io.WriteCloser, h Header, args []interface{}) ([
 	buffers, err := e.attachBuffer(reflect.ValueOf(args), &max)
 	if err != nil {
 		return nil, err
-	}
-	if len(buffers) > 0 && (h.Type == Event || h.Type == Ack) {
-		h.Type += 3
-	}
-
-	if h.Type == binaryAck || h.Type == binaryEvent {
-		if err := e.writeUint64(bw, max); err != nil {
-			return nil, err
-		}
-		if err := bw.WriteByte('-'); err != nil {
-			return nil, err
-		}
-	}
-
-	if h.Namespace != "" {
-		if _, err := bw.Write([]byte(h.Namespace)); err != nil {
-			return nil, err
-		}
-		if h.ID != 0 || args != nil {
-			if err := bw.WriteByte(','); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if h.NeedAck {
-		if err := e.writeUint64(bw, h.ID); err != nil {
-			return nil, err
-		}
 	}
 
 	if args != nil {

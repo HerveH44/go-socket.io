@@ -54,7 +54,7 @@ func (d *Decoder) DiscardLast() (err error) {
 	return
 }
 
-func (d *Decoder) DecodeHeader(header *Header, event *string) error {
+func (d *Decoder) DecodeHeader(event *string) error {
 	ft, r, err := d.r.NextReader()
 	if err != nil {
 		return err
@@ -69,19 +69,8 @@ func (d *Decoder) DecodeHeader(header *Header, event *string) error {
 	}
 	d.packetReader = br
 
-	bufferCount, err := d.readHeader(header)
-	if err != nil {
+	if err := d.readEvent(event); err != nil {
 		return err
-	}
-	d.bufferCount = bufferCount
-	if header.Type == binaryEvent || header.Type == binaryAck {
-		header.Type -= 3
-	}
-	d.isEvent = header.Type == Event
-	if d.isEvent {
-		if err := d.readEvent(event); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -178,83 +167,6 @@ func (d *Decoder) readString(r byteReader, until byte) (string, error) {
 		}
 		hasRead = true
 	}
-}
-
-func (d *Decoder) readHeader(header *Header) (uint64, error) {
-	// read type
-	var typ byte
-	typ, err := d.packetReader.ReadByte()
-	if err != nil {
-		return 0, err
-	}
-	header.Type = Type(typ - '0')
-	if header.Type >= typeMax {
-		return 0, errors.New("invalid packet type")
-	}
-
-	num, hasNum, err := d.readUint64FromText(d.packetReader)
-	if err != nil {
-		if err == io.EOF {
-			err = nil
-		}
-		return 0, err
-	}
-	nextByte, err := d.packetReader.ReadByte()
-	if err != nil {
-		header.ID = num
-		header.NeedAck = hasNum
-		if err == io.EOF {
-			err = nil
-		}
-		return 0, err
-	}
-
-	// check if buffer count
-	var bufferCount uint64
-	if nextByte == '-' {
-		bufferCount = num
-		hasNum = false
-		num = 0
-	} else {
-		d.packetReader.UnreadByte()
-	}
-
-	// check namespace
-	nextByte, err = d.packetReader.ReadByte()
-	if err != nil {
-		if err == io.EOF {
-			err = nil
-		}
-		return bufferCount, err
-	}
-	if nextByte == '/' {
-		d.packetReader.UnreadByte()
-		header.Namespace, err = d.readString(d.packetReader, ',')
-		if err != nil {
-			if err == io.EOF {
-				err = nil
-			}
-			return bufferCount, err
-		}
-	} else {
-		d.packetReader.UnreadByte()
-	}
-
-	// read id
-	header.ID, header.NeedAck, err = d.readUint64FromText(d.packetReader)
-	if err != nil {
-		if err == io.EOF {
-			err = nil
-		}
-		return bufferCount, err
-	}
-	if !header.NeedAck {
-		// 313["data"], id has beed read at beginning, need add back.
-		header.ID = num
-		header.NeedAck = hasNum
-	}
-
-	return bufferCount, err
 }
 
 func (d *Decoder) readEvent(event *string) error {
